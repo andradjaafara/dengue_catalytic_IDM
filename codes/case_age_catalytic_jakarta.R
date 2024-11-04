@@ -3,6 +3,7 @@ library(janitor)
 library(rstan)
 library(cowplot)
 library(bayesplot)
+library(grafify)
 source("codes/functions.R")
 
 options(mc.cores = parallel::detectCores())
@@ -11,6 +12,7 @@ options(mc.cores = parallel::detectCores())
 catalytic_mod6 <- stan_model(file="codes/stan/case_age_catalytic_multi_lamH_PS_pooling.stan")
 
 #### load data
+#### jakarta data can be downloaded from: https://surveilans-dinkes.jakarta.go.id/sarsbaru/pkm_pwskec_rekap.php
 dengue_jkt_list <- readRDS("data/dengue_jkt_list.rds")
 pop_jkt_list <- readRDS("data/pop_jkt_list.rds")
 
@@ -41,9 +43,11 @@ stanfit_jkt_mod6_pooling <- sampling(catalytic_mod6,
                                      chains = 4,
                                      pars = params_prov,
                                      seed = seed_rand)
+# saveRDS(stanfit_jkt_mod6_pooling,"output/stanfit_jkt_mod6_pooling.rds") # over 100 MB
 
 View(round(summary(stanfit_jkt_mod6_pooling)$summary,3))
 
+#### traceplots
 traceplot(stanfit_jkt_mod6_pooling,pars="lam_t")
 traceplot(stanfit_jkt_mod6_pooling,pars="lam_t_prov")
 traceplot(stanfit_jkt_mod6_pooling,pars="rho")
@@ -57,11 +61,6 @@ traceplot(stanfit_jkt_mod6_pooling,pars="phi")
 #### summarising posterior
 stanfit_jkt_mod6_pooling_samples <- extract(stanfit_jkt_mod6_pooling,pars=params_prov)
 n_samples <- dim(stanfit_jkt_mod6_pooling_samples$lam_H_prov)[1]
-
-
-
-colMeans(stanfit_jkt_mod6_pooling_samples$gamma)
-colMeans(stanfit_jkt_mod6_pooling_samples$rho)
 
 no_of_admin2 <- length(jkt_admin2_v2)
 
@@ -144,7 +143,9 @@ lam_all_jkt <- bind_rows(lam_H_jkt,lam_t_jkt) %>%
   arrange(admin2,t) %>% 
   ungroup()
 
-lambda_estim <- readRDS("lambda_estim.rds") %>% 
+#### this lambda estimations are from seroprevalence surveys presented in this study by Tam et al.:
+#### https://journals.plos.org/plosntds/article?id=10.1371/journal.pntd.0006932
+lambda_estim <- readRDS("data/lambda_estim.rds") %>% 
   filter(study %in% c("2_Kali Deres","2_Pesanggrahan","2_Pulo Gadung")) %>% 
   mutate(admin2=c("KOTA JAKARTA BARAT","KOTA JAKARTA SELATAN","KOTA JAKARTA TIMUR"),
          t=2014)
@@ -198,7 +199,7 @@ plot_gamma_jkt <- gamma_jkt %>%
 plot_1_jkt <- plot_grid(plot_rho_jkt,plot_gamma_jkt)
 plot_2_jkt <- plot_grid(plot_lam_all_jkt,plot_1_jkt,ncol=1,rel_heights = c(1,0.4))
 
-ggsave("plot_fitting.png",plot_2_jkt,width=37.8,height=25,units="cm")
+ggsave("output/plot_fitting.png",plot_2_jkt,width=37.8,height=25,units="cm")
 
 #### visualise
 plot_lam_H_jkt <- lam_H_jkt %>% 
@@ -337,5 +338,3 @@ plot_fitting_data_jkt <- simulated_cases_jkt_mod3_summary %>%
         strip.text.y = element_blank())
 
 ggsave("output/plot_fitting_data.png",plot_fitting_data_jkt,width=37.8,height=13.46,units="cm")
-
-
